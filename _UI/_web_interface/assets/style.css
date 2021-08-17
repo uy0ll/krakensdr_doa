@@ -165,7 +165,7 @@ iframe{
  margin: 10px;
  float: left;
 }
-.monitor_card{
+.graph_card{
   background-color: #000000;
   border: 0.1em solid #ffffff;
   border-radius:0.2em;      
@@ -175,7 +175,6 @@ iframe{
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.46);
   margin: auto;    
  }
- 
 .field{
   width: 400px;
   display: block;

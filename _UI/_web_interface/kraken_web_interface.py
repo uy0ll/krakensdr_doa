@@ -130,7 +130,13 @@ class webInterface():
         self.max_amplitude         = 0 # Used to help setting the threshold level of the squelch
         self.avg_powers            = []
         self.logger.info("Web interface object initialized")
-    
+
+        # UI configuration
+        self.sys_mon_length        = 100 # Number of values used in the monitor
+        self.sys_mon_src           = "-" # Data source ""/"" 
+        self.sys_mon_data          = np.zeros([2,self.sys_mon_length], dtype=float)
+        self.sys_mon_data[0,:]     = np.arange(self.sys_mon_length)
+
     def save_configuration(self):
         data = {}
 
@@ -357,9 +363,10 @@ fig_layout = go.Layout(
         showlegend=True    
     )
 fig_dummy = go.Figure(layout=fig_layout)
-fig_dummy.add_trace(go.Scatter(x=x, y=y, name = "Avg spectrum"))
+fig_dummy.add_trace(go.Scatter(x=x, y=y))
 fig_dummy.update_xaxes(title_text="Frequency [MHz]")
-fig_dummy.update_yaxes(title_text="Amplitude [dB]")   
+fig_dummy.update_yaxes(title_text="Amplitude [dB]")  
+fig_dummy.update_layout(showlegend=False) 
 
 option = [{"label":"", "value": 1}]
 
@@ -401,6 +408,7 @@ app.layout = html.Div([
     html.Div(id="placeholder_config_page_upd"  , style={"display":"none"}),
     html.Div(id="placeholder_spectrum_page_upd", style={"display":"none"}),
     html.Div(id="placeholder_doa_page_upd"     , style={"display":"none"}),
+    html.Div(id="placeholder_sys_mon_upd"      , style={"display":"none"}),
 
     html.Div(id='page-content')
 ])
@@ -722,7 +730,7 @@ def generate_config_page_layout(webInterface_inst):
     reconfig_note = ""
     squelch_card = \
     html.Div([
-        html.H2("Squelch configuration", id="init_title_sq"),
+        html.H2("Squelch Configuration", id="init_title_sq"),
         html.Div([html.Div("Enable squelch (DOA-DSP Subsystem)", id="label_en_dsp_squelch" , className="field-label"),
                 dcc.Checklist(options=option , id="en_dsp_squelch_check" , className="field-body", value=en_dsp_squelch_values),
             ], className="field"),
@@ -733,7 +741,19 @@ def generate_config_page_layout(webInterface_inst):
         html.Div(reconfig_note, id="squelch_reconfig_note", className="field", style={"color":"red"}),
     ], className="card")
 
-    config_page_layout = html.Div(children=[daq_config_card, daq_status_card, dsp_config_card, display_options_card,squelch_card])
+    #-----------------------------
+    #         System Monitor
+    #-----------------------------
+    sys_mon_card = \
+    html.Div([        
+        dcc.Graph(
+            style={"height": "inherit"},
+            id="sys_mon_graph",
+            figure=fig_dummy
+        )], className="card")
+
+    config_page_layout = html.Div(children=[daq_config_card, daq_status_card, dsp_config_card, display_options_card,squelch_card, sys_mon_card])
+
     return config_page_layout
 
         
@@ -743,7 +763,7 @@ spectrum_page_layout = html.Div([
         style={"height": "inherit"},
         id="spectrum-graph",
         figure=fig_dummy
-    )], className="monitor_card"),
+    )], className="graph_card"),
 ])
 def generate_doa_page_layout(webInterface_inst):
     doa_page_layout = html.Div([        
@@ -752,7 +772,7 @@ def generate_doa_page_layout(webInterface_inst):
             style={"height": "inherit"},
             id="doa-graph",
             figure=fig_dummy
-        )], className="monitor_card"),
+        )], className="graph_card"),
     ])
     return doa_page_layout
 
@@ -761,6 +781,7 @@ def generate_doa_page_layout(webInterface_inst):
     Output(component_id="placeholder_config_page_upd"  , component_property='children'),
     Output(component_id="placeholder_spectrum_page_upd", component_property='children'),
     Output(component_id="placeholder_doa_page_upd"     , component_property='children'),
+    Output(component_id="placeholder_sys_mon_upd"      , component_property='children'),
     Output(component_id="placeholder_update_freq"      , component_property='children'),  
     Input(component_id ="interval-component"           , component_property='n_intervals'),
     State(component_id ="url"                          , component_property='pathname')
@@ -770,6 +791,7 @@ def fetch_dsp_data(input_value, pathname):
     spectrum_update_flag   = 0
     doa_update_flag        = 0
     freq_update            = no_update
+    new_sys_mon_data       = None
     #############################################
     #      Fetch new data from back-end ques    #
     #############################################        
@@ -853,7 +875,8 @@ def fetch_dsp_data(input_value, pathname):
                 for avg_power in data_entry[1]:
                     avg_powers_str+="{:.1f}".format(avg_power)
                     avg_powers_str+=", "
-                webInterface_inst.avg_powers = avg_powers_str[:-2]                
+                webInterface_inst.avg_powers = avg_powers_str[:-2]
+                new_sys_mon_data = data_entry[1][0]
             elif data_entry[0] == "spectrum":
                 logging.debug("Spectrum data fetched from signal processing que")
                 spectrum_update_flag = 1
@@ -912,16 +935,24 @@ def fetch_dsp_data(input_value, pathname):
         webInterface_inst.DOA_res_fd.seek(0)
         webInterface_inst.DOA_res_fd.write(html_str)
         webInterface_inst.DOA_res_fd.truncate()
-        logging.debug("DoA results writen: {:s}".format(html_str))    
+        logging.debug("DoA results writen: {:s}".format(html_str))  
+
+    # System Monitor update
+    webInterface_inst.sys_mon_data[1,0:-1] = webInterface_inst.sys_mon_data[1,1::]
+    #webInterface_inst.sys_mon_data[1,-1]   = np.random.normal()
+    if new_sys_mon_data is not None:
+        webInterface_inst.sys_mon_data[1,-1] = new_sys_mon_data
+         
+  
 
     if (pathname == "/config" or pathname=="/") and daq_status_update_flag:        
-        return webInterface_inst.page_update_rate*1000, 1, no_update, no_update, freq_update
+        return webInterface_inst.page_update_rate*1000, 1, no_update, no_update, 1, freq_update
     elif pathname == "/spectrum" and spectrum_update_flag:
-        return webInterface_inst.page_update_rate*1000, no_update, 1, no_update, no_update
+        return webInterface_inst.page_update_rate*1000, no_update, 1, no_update, no_update, no_update
     elif pathname == "/doa" and doa_update_flag:
-        return webInterface_inst.page_update_rate*1000, no_update, no_update, 1, no_update
+        return webInterface_inst.page_update_rate*1000, no_update, no_update, 1, no_update, no_update
     else:
-        return  webInterface_inst.page_update_rate*1000, no_update, no_update, no_update, no_update
+        return  webInterface_inst.page_update_rate*1000, no_update, no_update, no_update, no_update, no_update
 
 @app.callback(
     Output(component_id="body_daq_update_rate"        , component_property='children'),
@@ -1042,8 +1073,21 @@ def update_daq_status(input_value):
             daq_cpi_str, webInterface_inst.daq_if_gains, daq_max_amp_str, \
             daq_avg_powers_str
             
+@app.callback(
+    Output(component_id='sys_mon_graph', component_property='figure'),
+    Input(component_id='placeholder_sys_mon_upd', component_property='children'),
+    prevent_initial_call=True
+)
+def plot_sys_mon(sys_mon_update_flag):
+    fig = go.Figure(layout=fig_layout)
+    # Plot traces    
+    fig.add_trace(go.Scatter(x=webInterface_inst.sys_mon_data[0,:], y=webInterface_inst.sys_mon_data[1,:]))
+    fig.update_layout(title="System Monitor")
+    fig.update_xaxes(title_text="Frame index", 
+                        color='rgba(255,255,255,1)')
 
-
+    return fig
+    
 @app.callback(
     Output(component_id='spectrum-graph', component_property='figure'),
     Input(component_id='placeholder_spectrum_page_upd', component_property='children'),
