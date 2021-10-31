@@ -1234,7 +1234,7 @@ def plot_doa(doa_update_flag):
                     doa_compass_with_aliases = 0-aliases+webInterface_inst.compass_ofset                    
                 else:
                     doa_compass = (360-webInterface_inst.doas[i]+webInterface_inst.compass_ofset)%360
-                    doa_compass_with_aliases = doa_compass
+                    doa_compass_with_aliases = [doa_compass]
                 
                 """
                 fig.add_trace(go.Scatterpolar(theta=thetas_compass, 
