@@ -1187,20 +1187,11 @@ def plot_doa(doa_update_flag):
                             showline=True)
         # --- Polar plot ---
         elif webInterface_inst._doa_fig_type == 1:
-            if webInterface_inst.module_signal_processor.DOA_ant_alignment == "ULA":           
-                fig.update_layout(polar = dict(sector = [0, 180], 
-                                               radialaxis_tickfont_size = figure_font_size,
-                                               angularaxis = dict(rotation=90,                                                                  
-                                                                  tickfont_size = figure_font_size
-                                                                  )
-                                                )
-                                 )                
-            else: #UCA                
-                fig.update_layout(polar = dict(radialaxis_tickfont_size = figure_font_size,
-                                               angularaxis = dict(rotation=90,                                                                   
-                                                                  tickfont_size = figure_font_size)                                               
-                                               )
-                                 )           
+            fig.update_layout(polar = dict(radialaxis_tickfont_size = figure_font_size,
+                                            angularaxis = dict(rotation=90,                                                                   
+                                                                tickfont_size = figure_font_size)                                               
+                                            )
+                                )           
 
             for i, doa_result in enumerate(webInterface_inst.doa_results):
                 label = webInterface_inst.doa_labels[i]+": "+str(webInterface_inst.doas[i])+"°"
@@ -1224,30 +1215,36 @@ def plot_doa(doa_update_flag):
         elif webInterface_inst._doa_fig_type == 2 :
             #thetas_compass = webInterface_inst.doa_thetas[::-1]            
             #thetas_compass += webInterface_inst.compass_ofset
-            if webInterface_inst.module_signal_processor.DOA_ant_alignment == "ULA":             
-                fig.update_layout(polar = dict(sector = [0, 180], 
-                                            radialaxis_tickfont_size = figure_font_size,
-                                            angularaxis = dict(rotation=90+webInterface_inst.compass_ofset,
-                                                                direction="clockwise",
-                                                                tickfont_size = figure_font_size
-                                                                )
-                                                )
-                                )                
-            else: #UCA                
-                fig.update_layout(polar = dict(radialaxis_tickfont_size = figure_font_size,
-                                            angularaxis = dict(rotation=90+webInterface_inst.compass_ofset, 
-                                                                direction="clockwise",
-                                                                tickfont_size = figure_font_size)                                               
-                                            )
-                                )           
+            fig.update_layout(polar = dict(radialaxis_tickfont_size = figure_font_size,
+                                        angularaxis = dict(rotation=90+webInterface_inst.compass_ofset, 
+                                                            direction="clockwise",
+                                                            tickfont_size = figure_font_size)                                               
+                                        )
+                            )           
 
-            for i, doa_result in enumerate(webInterface_inst.doa_results):                 
+            for i, doa_result in enumerate(webInterface_inst.doa_results):
+                doa_compass_with_aliases = []
+                d = 1 # wawelength
                 if webInterface_inst.module_signal_processor.DOA_ant_alignment == "ULA":
+
+                    x_ula_theta = np.angle(np.exp(1j*np.deg2rad(webInterface_inst.doas[i]))*1j) # Convert to reference ULA
+                    betad = 2*np.pi*webInterface_inst.module_signal_processor.DOA_inter_elem_space
+                    phase = betad*np.cos(x_ula_theta) # Electronic phase
+                    r = -1j
+                    # Assuming that the inter-element spacing is not greater than 10 wavelength
+                    k = np.arange(-10,11,1)
+                    margin=1e-3
+                    aliases = np.exp(1j*(np.arccos((phase+k[(betad+margin)>=abs(phase+k*2*np.pi)]*2*np.pi)/betad)))
+                    mirror = np.conj(aliases)
+                    mirror = mirror[abs(aliases-mirror)>0.001]
+                    aliases = np.concatenate([np.rad2deg(np.angle(aliases*r)),np.rad2deg(np.angle(mirror*r))])
+                    aliases = np.round(aliases,2)
                     doa_compass = 0-webInterface_inst.doas[i]+webInterface_inst.compass_ofset
-                    
+                    doa_compass_with_aliases = 0-aliases+webInterface_inst.compass_ofset                    
                 else:
                     doa_compass = (360-webInterface_inst.doas[i]+webInterface_inst.compass_ofset)%360
-                label = webInterface_inst.doa_labels[i]+": "+str(doa_compass)+"°"           
+                    doa_compass_with_aliases = [doa_compass]
+                
                 """
                 fig.add_trace(go.Scatterpolar(theta=thetas_compass, 
                                             r=doa_result,
@@ -1256,17 +1253,19 @@ def plot_doa(doa_update_flag):
                                             fill= 'toself'
                                             ))
                 """
-                fig.add_trace(go.Scatterpolar(
-                                                r = [0,min(doa_result)],
-                                                theta = [doa_compass,
-                                                         doa_compass],
-                                                mode = 'lines',
-                                                name = label,
-                                                showlegend=True,                                                      
-                                                line = dict(
-                                                    color = doa_trace_colors[webInterface_inst.doa_labels[i]],
-                                                    dash='dash'
-                                                )))
+                for doa_to_plot in doa_compass_with_aliases:
+                    label = webInterface_inst.doa_labels[i]+": "+str(doa_to_plot)+"°"
+                    fig.add_trace(go.Scatterpolar(
+                                                    r = [1,0],#min(doa_result)
+                                                    theta = [doa_to_plot,
+                                                            doa_to_plot],
+                                                    mode = 'lines',
+                                                    name = label,
+                                                    showlegend=True,                                                      
+                                                    line = dict(
+                                                        #color = doa_trace_colors[webInterface_inst.doa_labels[i]],
+                                                        dash='dash'
+                                                    )))
 
         return fig
 
