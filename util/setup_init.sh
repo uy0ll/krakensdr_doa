@@ -16,4 +16,5 @@ python3 -m pip install matplotlib
 python3 -m pip install dash
 python3 -m pip install dash-bootstrap-components
 python3 -m pip install dash-core-components
+python3 -m pip install dash-html-components
 python3 -m pip install gunicorn
