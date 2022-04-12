@@ -144,6 +144,9 @@ class SignalProcessor(threading.Thread):
         self.usegps = False
         self.gps_connected = False
 
+        # Kraken Pro Remote API Key
+        self.krakenpro_key = "0"
+
     def run(self):
         """
             Main processing thread
@@ -185,6 +188,8 @@ class SignalProcessor(threading.Thread):
                     global_decimation_factor = max(int(self.dsp_decimation), 1) #max(int(self.phasetest[0]), 1) #ps_len // 65536 #int(self.phasetest[0]) + 1
  
                     if global_decimation_factor > 1:
+                        #fir_filter = filter_only(global_decimation_factor, 5, 1.0)
+                        #self.processed_signal = signal.decimate(self.processed_signal, global_decimation_factor, ftype=fir_filter)
                         self.processed_signal = signal.decimate(self.processed_signal, global_decimation_factor, n = global_decimation_factor * 5, ftype='fir')
                         sampling_freq = sampling_freq//global_decimation_factor
 
@@ -354,7 +359,7 @@ class SignalProcessor(threading.Thread):
                                         self.longitude,
                                         self.heading,
                                         "Kerberos")
-                        elif self.DOA_data_format == "Kraken Pro App":
+                        elif self.DOA_data_format == "Kraken Pro Local":
                             self.wr_json(self.station_id,
                                         DOA_str,
                                         confidence_str,
@@ -364,6 +369,17 @@ class SignalProcessor(threading.Thread):
                                         self.latitude,
                                         self.longitude,
                                         self.heading)
+                        elif self.DOA_data_format == "Kraken Pro Remote":
+                            self.wr_json(self.station_id,
+                                        DOA_str,
+                                        confidence_str,
+                                        max_power_level_str,
+                                        write_freq,
+                                        doa_result_log,
+                                        self.latitude,
+                                        self.longitude,
+                                        self.heading)
+
 
                         else:
                             self.logger.error(f"Invalid DOA Result data format: {self.DOA_data_format}")
@@ -604,6 +620,17 @@ def shift_filter(decimation_factor, freq, sampling_freq, padd):
     exponential = get_exponential(-freq, sampling_freq, len(b))
     b = numba_mult(b, exponential)
     return signal.dlti(b,a)
+
+
+@lru_cache(maxsize=32)
+def filter_only(decimation_factor, fir_multiplier, padd):
+    system = get_fir(decimation_factor*fir_multiplier, decimation_factor, padd)
+    b = system.num
+    a = system.den
+    #exponential = get_exponential(-freq, sampling_freq, len(b))
+    #b = numba_mult(b, exponential)
+    return signal.dlti(b,a)
+
 
 # This function takes the full data, and efficiently returns only a filtered and decimated requested channel
 # Efficient method: Create BANDPASS Filter for frequency of interest, decimate with that bandpass filter, then do the final shift

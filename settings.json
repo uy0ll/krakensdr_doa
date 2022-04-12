@@ -23,6 +23,7 @@
   "latitude": 0.0,
   "longitude": 0.0,
   "heading": 0.0,
+  "krakenpro_key": "0",
   "spectrum_calculation": "Single",
   "vfo_mode": "Standard",
   "dsp_decimation": 1,

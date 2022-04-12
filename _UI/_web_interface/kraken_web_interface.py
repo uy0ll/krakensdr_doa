@@ -99,7 +99,6 @@ class webInterface():
         #############################################
         #  Initialize and Configure Kraken modules  #
         #############################################
-
         # Web interface internal
         self.disable_tooltips = dsp_settings.get("disable_tooltips", 0)
         self.page_update_rate = 1
@@ -150,6 +149,9 @@ class webInterface():
         self.module_signal_processor.latitude      = dsp_settings.get("latitude", 0.0)
         self.module_signal_processor.longitude     = dsp_settings.get("longitude", 0.0)
         self.module_signal_processor.heading       = dsp_settings.get("heading", 0.0)
+
+        # Kraken Pro Remote Key
+        self.module_signal_processor.krakenpro_key = dsp_settings.get("krakenpro_key", 0.0)
 
         # VFO Configuration
         self.module_signal_processor.spectrum_fig_type = dsp_settings.get("spectrum_calculation", "Single")
@@ -271,6 +273,7 @@ class webInterface():
         data["latitude"] = self.module_signal_processor.latitude
         data["longitude"] = self.module_signal_processor.longitude
         data["heading"] = self.module_signal_processor.heading
+        data["krakenpro_key"] = self.module_signal_processor.krakenpro_key
 
         # VFO Information
         data["spectrum_calculation"] = self.module_signal_processor.spectrum_fig_type
@@ -1016,7 +1019,8 @@ def generate_config_page_layout(webInterface_inst):
                 dcc.Dropdown(id='doa_format_type',
                              options=[
                                  {'label': 'Kraken App', 'value': 'Kraken App'},
-                                 {'label': 'Kraken Pro App', 'value': 'Kraken Pro App'},
+                                 {'label': 'Kraken Pro Local', 'value': 'Kraken Pro Local'},
+                                 {'label': 'Kraken Pro Remote', 'value': 'Kraken Pro Remote'},
                                  {'label': 'Kerberos App', 'value': 'Kerberos App'},
                                  {'label': 'DF Aggregator', 'value': 'DF Aggregator'},
                                  {'label': 'JSON', 'value': 'JSON', 'disabled': True},
@@ -1024,6 +1028,12 @@ def generate_config_page_layout(webInterface_inst):
                              value=webInterface_inst.module_signal_processor.DOA_data_format,
                              style={"display": "inline-block"}, className="field-body"),
             ], className="field"),
+            html.Div([
+                html.Div("Kraken Pro Key:", className="field-label"),
+                dcc.Input(id='krakenpro_key',
+                          value=webInterface_inst.module_signal_processor.krakenpro_key,
+                          type='text', className="field-body-textbox", debounce=True)
+            ], id="krakenpro_field", className="field"),
             html.Div([
                 html.Div("Location Source:", id="location_src_label", className="field-label"),
                 dcc.Dropdown(id='loc_src_dropdown',
@@ -1051,20 +1061,20 @@ def generate_config_page_layout(webInterface_inst):
                     html.Div("Latitude:", className="field-label"),
                     dcc.Input(id='latitude_input',
                               value=webInterface_inst.module_signal_processor.latitude,
-                              type='number', className="field-body")
+                              type='number', className="field-body-textbox")
                 ], id="latitude_field", className="field"),
                 html.Div([
                     html.Div("Longitude:", className="field-label"),
                     dcc.Input(id='longitude_input',
                               value=webInterface_inst.module_signal_processor.longitude,
-                              type='number', className="field-body")
+                              type='number', className="field-body-textbox")
                 ], id="logitude_field", className="field"),
             ], id="location_fields"),
             html.Div([
                 html.Div("Heading:", className="field-label"),
                 dcc.Input(id='heading_input',
                           value=webInterface_inst.module_signal_processor.heading,
-                          type='number', className="field-body")
+                          type='number', className="field-body-textbox")
             ], id="heading_field", className="field"),
             html.Div([
                 html.Div([
@@ -1568,6 +1578,10 @@ def set_station_id(station_id):
     webInterface_inst.module_signal_processor.station_id = valid_id
     return valid_id
 
+@app.callback_shared(None,
+                     [Input(component_id='krakenpro_key', component_property='value')])
+def set_kraken_pro_key(key):
+    webInterface_inst.module_signal_processor.krakenpro_key = key 
 
 # Enable GPS Relevant fields
 @app.callback([Output('fixed_heading_div', 'style'),
@@ -1596,6 +1610,14 @@ def toggle_location_info(static_loc, fixed_heading):
     else:
         return {'display': 'none'}
 
+# Enable of Disable Kraken Pro Key Box
+@app.callback(Output('krakenpro_field', 'style'),
+              [Input('doa_format_type', 'value')])
+def toggle_kraken_pro_key(doa_format_type):
+    if doa_format_type == "Kraken Pro Remote":
+        return {'display': 'block'}
+    else:
+        return {'display': 'none'}
 
 # Enable or Disable Location Input Fields
 @app.callback(Output('location_fields', 'style'),
@@ -2054,7 +2076,7 @@ def update_daq_ini_params(
         if component_id == 'daq_cfg_files':
             webInterface_inst.daq_ini_cfg_dict = read_config_file_dict(config_fname)
             webInterface_inst.tmp_daq_ini_cfg = webInterface_inst.daq_ini_cfg_dict['config_name']
-            daq_cf_dict = webInterface_inst.daq_ini_cfg_dict
+            daq_cfg_dict = webInterface_inst.daq_ini_cfg_dict
 
             if daq_cfg_dict is not None:
                 en_noise_src_values       =[1] if daq_cfg_dict['en_noise_source_ctr']  else []
